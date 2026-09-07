@@ -21,8 +21,11 @@ jobs:
       - run: pnpm build
       - run: pnpm typecheck
       - run: pnpm test
-      # Reaches the real testnet host, but reads only: no credentials, no order.
-      # Exit code 2 means "reachable and correlated, credentials absent", which
-      # is the expected state in CI.
-      - name: Capability probe (read-only)
-        run: pnpm probe || [ $? -eq 2 ]
+      # Informational only. The probe reaches the real testnet host and reads
+      # nothing but public endpoints, but Binance answers GitHub-hosted runners
+      # with HTTP 451, so this cannot gate a merge. Run `pnpm probe` locally to
+      # actually verify reachability and correlation; the suite above needs no
+      # network and is what CI is really checking.
+      - name: Capability probe (read-only, informational)
+        continue-on-error: true
+        run: pnpm probe
