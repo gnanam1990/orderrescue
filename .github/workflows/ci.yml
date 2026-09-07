@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm typecheck
+      - run: pnpm test
+      # Reaches the real testnet host, but reads only: no credentials, no order.
+      # Exit code 2 means "reachable and correlated, credentials absent", which
+      # is the expected state in CI.
+      - name: Capability probe (read-only)
+        run: pnpm probe || [ $? -eq 2 ]
