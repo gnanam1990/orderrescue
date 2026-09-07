@@ -1,4 +1,4 @@
-import { writeFileSync } from 'node:fs';
+import { closeSync, constants, fchmodSync, openSync, writeSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { loadConfig, ConfigError } from './config.js';
 import { OrderRescueService } from './service.js';
@@ -45,7 +45,7 @@ async function main(): Promise<void> {
   // place for it: server logs get pasted into issues and captured in demo
   // recordings. Write it to an owner-only file and print the path instead.
   const secretPath = resolve('.orderrescue-session');
-  writeFileSync(secretPath, `${config.sessionSecret}\n`, { mode: 0o600 });
+  writeSecretFile(secretPath, `${config.sessionSecret}\n`);
   console.log(`orderrescue: session secret written to ${secretPath} (mode 0600)`);
 
   const shutdown = async () => {
@@ -56,6 +56,34 @@ async function main(): Promise<void> {
   };
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
+}
+
+/**
+ * Writes a credential to disk without trusting what is already at the path.
+ *
+ * O_NOFOLLOW makes the open fail rather than write through a symlink someone
+ * planted there, and fchmod is applied to the open descriptor because the
+ * `mode` argument only takes effect when a file is created — an existing
+ * world-readable file would otherwise keep its permissions.
+ */
+function writeSecretFile(path: string, contents: string): void {
+  const flags = constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | constants.O_NOFOLLOW;
+  let fd: number;
+  try {
+    fd = openSync(path, flags, 0o600);
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === 'ELOOP' || code === 'EMLINK') {
+      throw new Error(`refusing to write the session secret: ${path} is a symbolic link`);
+    }
+    throw error;
+  }
+  try {
+    fchmodSync(fd, 0o600);
+    writeSync(fd, contents);
+  } finally {
+    closeSync(fd);
+  }
 }
 
 main().catch((error) => {

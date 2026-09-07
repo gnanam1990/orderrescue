@@ -20,6 +20,8 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
+  // Held in React state and in the api module only — never persisted. See the
+  // note on writeSessionSecret.
   const [secret, setSecret] = useState(readSessionSecret);
 
   // One contextual live region for the whole console. Individual badges do not
@@ -168,7 +170,7 @@ function ConnectionGate({
               id="session-secret"
               type="password"
               value={secret}
-              placeholder="paste from server log"
+              placeholder="paste from .orderrescue-session"
               onChange={(event) => onSecretChange(event.target.value)}
               style={{ width: 180, minHeight: 28, padding: '0 8px', background: 'var(--bg)', border: '1px solid var(--line-strong)', borderRadius: 4 }}
             />

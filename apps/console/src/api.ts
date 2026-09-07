@@ -76,22 +76,24 @@ export class ApiError extends Error {
   }
 }
 
-const SESSION_STORAGE_KEY = 'orderrescue.session';
+/**
+ * The session secret is held in memory for the life of the page and never
+ * written to localStorage or sessionStorage.
+ *
+ * It authorizes every mutating route, including order placement, so persisting
+ * it would leave a live credential sitting in browser storage where any script
+ * running on this origin could read it and where it would outlive the process
+ * that issued it. The cost is that it must be pasted again after a reload,
+ * which is the right trade for a value that can place a trade.
+ */
+let sessionSecret = '';
 
 export function readSessionSecret(): string {
-  try {
-    return localStorage.getItem(SESSION_STORAGE_KEY) ?? '';
-  } catch {
-    return '';
-  }
+  return sessionSecret;
 }
 
 export function writeSessionSecret(value: string): void {
-  try {
-    localStorage.setItem(SESSION_STORAGE_KEY, value);
-  } catch {
-    /* private browsing: the value simply will not persist */
-  }
+  sessionSecret = value;
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
