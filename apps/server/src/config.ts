@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { isAbsolute, resolve } from 'node:path';
 import { z } from 'zod';
 
 const booleanish = z
@@ -52,6 +53,21 @@ export class ConfigError extends Error {}
 
 const MAINNET_HOSTS = ['api.binance.com', 'api1.binance.com', 'api2.binance.com', 'api3.binance.com', 'api4.binance.com'];
 
+/**
+ * Resolves the journal path to an absolute one, against the directory the
+ * command was invoked from rather than the process cwd.
+ *
+ * pnpm runs a package script with cwd set to that package's directory, so a
+ * relative `./data/journal.db` meant two different files depending on whether
+ * you ran the server or a CLI — and the CLI would happily create the second
+ * one. INIT_CWD is where the user actually stood, which is what they meant.
+ */
+function resolveDbPath(configured: string, env: NodeJS.ProcessEnv): string {
+  if (configured === ':memory:' || isAbsolute(configured)) return configured;
+  const base = env.INIT_CWD ?? process.cwd();
+  return resolve(base, configured);
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const parsed = schema.safeParse(env);
   if (!parsed.success) {
@@ -81,7 +97,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     environment: 'TESTNET',
     host: value.ORDERRESCUE_HOST,
     port: value.ORDERRESCUE_PORT,
-    dbPath: value.ORDERRESCUE_DB_PATH,
+    dbPath: resolveDbPath(value.ORDERRESCUE_DB_PATH, env),
     // Generated per process when unset: a mutation route is never left
     // unprotected just because nobody configured a secret.
     sessionSecret: value.ORDERRESCUE_SESSION_SECRET ?? randomBytes(32).toString('hex'),

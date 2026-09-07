@@ -279,3 +279,28 @@ describe('configuration lockout', () => {
     bare.journal.close();
   });
 });
+
+describe('journal path resolution', () => {
+  it('resolves a relative path against the invoking directory, not the package cwd', () => {
+    // pnpm sets INIT_CWD to where the user stood; without this, `pnpm dev` and
+    // `pnpm verify-chain` addressed two different files and the CLI created
+    // an empty second journal it then reported as intact.
+    const config = loadConfig({
+      ORDERRESCUE_DB_PATH: './data/journal.db',
+      INIT_CWD: '/repo/root',
+    } as NodeJS.ProcessEnv);
+    expect(config.dbPath).toBe('/repo/root/data/journal.db');
+  });
+
+  it('leaves an absolute path alone', () => {
+    const config = loadConfig({
+      ORDERRESCUE_DB_PATH: '/var/lib/orderrescue/journal.db',
+      INIT_CWD: '/repo/root',
+    } as NodeJS.ProcessEnv);
+    expect(config.dbPath).toBe('/var/lib/orderrescue/journal.db');
+  });
+
+  it('leaves :memory: alone', () => {
+    expect(loadConfig({ ORDERRESCUE_DB_PATH: ':memory:' } as NodeJS.ProcessEnv).dbPath).toBe(':memory:');
+  });
+});
