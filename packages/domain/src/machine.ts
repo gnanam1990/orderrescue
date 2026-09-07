@@ -27,6 +27,7 @@ export type Command =
   | { type: 'BEGIN_RECONCILIATION' }
   | { type: 'RECORD_ORDER_OBSERVATION'; observation: OrderObservation; source?: EvidenceSource }
   | { type: 'RECORD_ORDER_ABSENT'; windowExhausted: boolean; attempts: number; windowMs: number }
+  | { type: 'RECORD_RECONCILIATION_UNAVAILABLE'; reason: string; detail: string }
   | { type: 'RECORD_ACCOUNT_OBSERVATION'; facts: Record<string, unknown> }
   | { type: 'REQUEST_CANCEL' }
   | { type: 'ESCALATE_MANUAL_REVIEW'; reason: string };
@@ -69,6 +70,15 @@ export function decide(view: OperationView, command: Command): Decision {
     if (command.type === 'RECORD_ORDER_OBSERVATION') {
       return reobserveTerminal(view, command.observation);
     }
+    // A retry against a settled operation deserves the specific reason, not a
+    // generic "terminal" — "this already executed, retrying would double the
+    // position" is the sentence the operator actually needs to read.
+    if (command.type === 'BEGIN_SUBMISSION') {
+      const blocked = retryBlockReason(view.state);
+      if (blocked !== null) {
+        throw new DomainError('RETRY_BLOCKED', blocked, { state: view.state });
+      }
+    }
     throw new DomainError('TERMINAL_STATE', `operation is terminal in state ${view.state}`, {
       state: view.state,
     });
@@ -91,6 +101,8 @@ export function decide(view: OperationView, command: Command): Decision {
       return recordOrderObservation(view, command.observation, command.source ?? 'BINANCE_ORDER_API');
     case 'RECORD_ORDER_ABSENT':
       return recordOrderAbsent(view, command);
+    case 'RECORD_RECONCILIATION_UNAVAILABLE':
+      return reconciliationUnavailable(view, command.reason, command.detail);
     case 'RECORD_ACCOUNT_OBSERVATION':
       return {
         nextState: view.state,
@@ -261,6 +273,32 @@ function beginReconciliation(view: OperationView): Decision {
         source: 'LOCAL',
         sourceTimestamp: null,
         facts: { fromState: view.state },
+      },
+    ],
+  };
+}
+
+/**
+ * The venue could not be asked. That tells us nothing about the order, so the
+ * operation returns to UNKNOWN and stays retry-blocked. An unreachable
+ * exchange must never look like an absent order.
+ */
+function reconciliationUnavailable(view: OperationView, reason: string, detail: string): Decision {
+  if (view.state !== 'RECONCILING') {
+    throw new DomainError(
+      'ILLEGAL_TRANSITION',
+      `reconciliation outcome requires RECONCILING, found ${view.state}`,
+      { state: view.state },
+    );
+  }
+  return {
+    nextState: 'UNKNOWN',
+    events: [
+      {
+        eventType: 'RECONCILIATION_STARTED',
+        source: 'LOCAL',
+        sourceTimestamp: null,
+        facts: { outcome: 'UNAVAILABLE', reason, detail, note: 'venue could not be queried; outcome remains unknown' },
       },
     ],
   };

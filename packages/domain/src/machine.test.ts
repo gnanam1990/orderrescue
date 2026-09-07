@@ -61,11 +61,12 @@ describe('dispatch authorization', () => {
     expectDomainError(() => decide(view({ state }), { type: 'BEGIN_SUBMISSION' }), 'RETRY_BLOCKED');
   });
 
-  it('refuses dispatch after the intent already filled', () => {
+  it('refuses dispatch after the intent already filled, and says why', () => {
     expectDomainError(
       () => decide(view({ state: 'FILLED', executedQuantity: '0.031' }), { type: 'BEGIN_SUBMISSION' }),
-      'TERMINAL_STATE',
+      'RETRY_BLOCKED',
     );
+    expect(() => decide(view({ state: 'FILLED' }), { type: 'BEGIN_SUBMISSION' })).toThrow(/already executed/);
   });
 
   it('gives every retry-blocking state a human-readable reason', () => {
@@ -216,5 +217,17 @@ describe('terminal states never regress', () => {
         expect(() => decide(view({ state }), command), `${state} accepted ${command.type}`).toThrow(DomainError);
       }
     }
+  });
+});
+
+describe('unreachable venue', () => {
+  it('returns a reconciling operation to UNKNOWN, never to absence', () => {
+    const decision = decide(view({ state: 'RECONCILING' }), {
+      type: 'RECORD_RECONCILIATION_UNAVAILABLE',
+      reason: 'status query failed',
+      detail: 'TypeError: fetch failed',
+    });
+    expect(decision.nextState).toBe('UNKNOWN');
+    expect(retryBlockReason(decision.nextState)).toBeTruthy();
   });
 });
