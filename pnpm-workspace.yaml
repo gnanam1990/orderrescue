@@ -2,4 +2,10 @@ packages:
   - "packages/*"
   - "apps/*"
 allowBuilds:
+  better-sqlite3: set this to true or false
   esbuild: set this to true or false
+
+# better-sqlite3 ships a native addon and needs its install script to run.
+# Listed explicitly so a fresh clone builds without an interactive prompt.
+onlyBuiltDependencies:
+  - better-sqlite3

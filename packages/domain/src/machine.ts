@@ -19,6 +19,7 @@ export interface OperationView {
 }
 
 export type Command =
+  | { type: 'CONFIRM_INTENT'; confirmationRef: string }
   | { type: 'BEGIN_SUBMISSION' }
   | { type: 'RECORD_ACKNOWLEDGEMENT'; observation: OrderObservation }
   | { type: 'RECORD_AMBIGUOUS_SUBMISSION'; reason: string; transportDetail?: string }
@@ -74,6 +75,8 @@ export function decide(view: OperationView, command: Command): Decision {
   }
 
   switch (command.type) {
+    case 'CONFIRM_INTENT':
+      return confirmIntent(view, command.confirmationRef);
     case 'BEGIN_SUBMISSION':
       return beginSubmission(view);
     case 'RECORD_ACKNOWLEDGEMENT':
@@ -109,6 +112,29 @@ export function decide(view: OperationView, command: Command): Decision {
       throw new DomainError('ILLEGAL_TRANSITION', `unknown command ${JSON.stringify(exhaustive)}`);
     }
   }
+}
+
+function confirmIntent(view: OperationView, confirmationRef: string): Decision {
+  if (view.state !== 'AWAITING_CONFIRMATION') {
+    throw new DomainError(
+      'ILLEGAL_TRANSITION',
+      `confirmation requires AWAITING_CONFIRMATION, found ${view.state}`,
+      { state: view.state },
+    );
+  }
+  return {
+    nextState: 'APPROVED',
+    events: [
+      {
+        eventType: 'INTENT_CONFIRMED',
+        source: 'OPERATOR',
+        sourceTimestamp: null,
+        // OrderRescue records that a confirmation happened. It does not and
+        // must not stand in for Binance Agent OS's own user confirmation.
+        facts: { confirmationRef, note: 'local confirmation record; not a substitute for venue-side user approval' },
+      },
+    ],
+  };
 }
 
 function beginSubmission(view: OperationView): Decision {
