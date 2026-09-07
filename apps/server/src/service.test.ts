@@ -210,6 +210,32 @@ describe('the lost-response path end to end', () => {
   });
 });
 
+describe('fault-injected ambiguity is operator-driven', () => {
+  it('does not auto-reconcile an injected fault, so the state stays inspectable', async () => {
+    const { operation } = await readyOperation();
+    service.fault.dropNextAck = true;
+    await service.executeIntent(operation.operationId);
+
+    expect(service.journal.getOperation(operation.operationId)?.state).toBe('UNKNOWN');
+    expect(service.journal.getReconciliationJob(operation.operationId)).toBeNull();
+    expect(await service.drainReconciliationQueue()).toBe(0);
+    // Still UNKNOWN, still retry-blocked, waiting for the operator.
+    expect(service.journal.getOperation(operation.operationId)?.state).toBe('UNKNOWN');
+    await expect(service.executeIntent(operation.operationId)).rejects.toThrowError(DomainError);
+  });
+
+  it('still auto-reconciles genuine ambiguity', async () => {
+    const { operation } = await readyOperation();
+    script.placeOrder = () => jsonResponse(503, { code: -1000, msg: 'Service unavailable.' });
+    await service.executeIntent(operation.operationId);
+
+    expect(service.journal.getReconciliationJob(operation.operationId)?.status).toBe('PENDING');
+    script.orderStatus = () => jsonResponse(200, FILLED_ORDER);
+    expect(await service.drainReconciliationQueue()).toBe(1);
+    expect(service.journal.getOperation(operation.operationId)?.state).toBe('FILLED');
+  });
+});
+
 describe('absence', () => {
   it('keeps an operation UNKNOWN until the observation window is exhausted', async () => {
     const { operation } = await readyOperation();

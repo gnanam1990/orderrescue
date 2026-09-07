@@ -109,6 +109,8 @@ The identifier used in step 7 is the one written in step 1. That is the entire t
 
 **Duplicate suppression is structural.** `operations.intent_id` is `UNIQUE`, so one economic decision cannot own two dispatchable records. Every transition runs inside `BEGIN IMMEDIATE`, so two competing execute requests serialize before either decides to dispatch — and a second connection reaches the same conclusion, because the guarantee is on disk rather than in memory.
 
+**An injected fault is not auto-healed.** A genuine ambiguity queues itself for background reconciliation within a second. A fault you armed yourself does not: you armed it to look at the unresolved state and watch a retry be refused, and healing it before you can is not a favour. Reconciliation there is operator-driven, from the console or the API.
+
 **Recovery observes, it never resubmits.** An operation left in `SUBMITTING` by a dead process becomes `UNKNOWN`, not `APPROVED`. Finding out what the venue already holds comes first.
 
 **Redaction happens on the way in.** Credentials are stripped before evidence is written, so nothing secret is ever at rest and an export bug cannot leak what was never stored. The export is a field allow-list, and withholds the caller-chosen idempotency key.
@@ -135,7 +137,7 @@ apps/console               operations console
 pnpm test
 ```
 
-97 tests. The ones that matter:
+102 tests. The ones that matter:
 
 - a lost response becomes `UNKNOWN`, never `FAILED`
 - no second dispatch from any state that may carry economic effect
@@ -145,6 +147,8 @@ pnpm test
 - terminal states cannot be rewritten by a late or contradictory response
 - an edited fact and a deleted event are both detected by the chain
 - credentials never reach storage or an export
+- an injected fault stays unresolved until an operator acts; genuine ambiguity still self-heals
+- a relative journal path resolves to the same file from every entry point
 - the whole demo path, with only the network stubbed — real classification, real state machine, real SQLite
 
 ## Honest limitations

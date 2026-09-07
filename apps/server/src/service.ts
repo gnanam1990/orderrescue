@@ -170,12 +170,16 @@ export class OrderRescueService {
         reason: 'acknowledgement dropped by the fault lab after dispatch',
         transportDetail: 'FAULT_LAB:DROP_ACK',
       });
-      this.journal.enqueueReconciliation(operationId);
+      // Deliberately not queued for background reconciliation. An operator who
+      // injected this fault did so in order to look at the unresolved state and
+      // watch a retry be refused; auto-healing it within a second defeats the
+      // inspection it exists for. Reconciliation here is operator-driven.
+      // Genuine ambiguity, below, still queues itself.
       return {
         operationId,
         state: ambiguous.operation.state,
         outcome: 'UNKNOWN',
-        detail: 'the response was lost after the order reached Binance',
+        detail: 'the response was lost after the order reached Binance; reconcile when ready',
       };
     }
 
