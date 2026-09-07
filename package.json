@@ -1,0 +1,24 @@
+{
+  "name": "orderrescue",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Execution-recovery layer for AI-initiated Binance orders: prove whether a lost order executed before permitting a retry.",
+  "license": "MIT",
+  "engines": { "node": ">=20.11" },
+  "packageManager": "pnpm@11.10.0",
+  "scripts": {
+    "build": "pnpm -r --filter \"./packages/**\" build && pnpm --filter @orderrescue/console build && pnpm --filter @orderrescue/server build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "dev": "pnpm --filter @orderrescue/server dev",
+    "probe": "pnpm --filter @orderrescue/server probe",
+    "verify-chain": "pnpm --filter @orderrescue/server verify-chain"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
