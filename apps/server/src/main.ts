@@ -1,3 +1,5 @@
+import { writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { loadConfig, ConfigError } from './config.js';
 import { OrderRescueService } from './service.js';
 import { buildApi } from './api.js';
@@ -38,7 +40,13 @@ async function main(): Promise<void> {
   console.log(`orderrescue: venue ${config.binance.baseUrl}`);
   console.log(`orderrescue: execution ${config.binance.credentialsPresent ? 'enabled' : 'DISABLED (no credentials configured)'}`);
   console.log(`orderrescue: fault lab ${config.faultLabEnabled ? 'enabled' : 'disabled'}`);
-  console.log(`orderrescue: session secret ${config.sessionSecret}`);
+
+  // The operator needs this value to use the console, but stdout is the wrong
+  // place for it: server logs get pasted into issues and captured in demo
+  // recordings. Write it to an owner-only file and print the path instead.
+  const secretPath = resolve('.orderrescue-session');
+  writeFileSync(secretPath, `${config.sessionSecret}\n`, { mode: 0o600 });
+  console.log(`orderrescue: session secret written to ${secretPath} (mode 0600)`);
 
   const shutdown = async () => {
     await service.stop();

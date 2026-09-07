@@ -12,3 +12,4 @@ data/
 evidence-exports/
 playwright-report/
 test-results/
+.orderrescue-session
